@@ -28,6 +28,37 @@ def log_download(name: str, title: str) -> None:
             writer.writerow(["timestamp", "name", "title"])
         writer.writerow([datetime.utcnow().isoformat(), cleaned_name, title])
 
+
+# Admin routing: if admin view is requested, show only the log tools
+params = st.experimental_get_query_params()
+is_admin = params.get("admin", ["0"])[0] == "1"
+provided_token = params.get("token", [""])[0]
+
+if is_admin:
+    st.title("Admin: Download Log")
+    if not ADMIN_TOKEN:
+        st.warning("ADMIN_TOKEN environment variable is not set; admin view is disabled.")
+    elif provided_token != ADMIN_TOKEN:
+        st.error("Unauthorized: invalid token.")
+    else:
+        if LOG_PATH.exists():
+            log_df = pd.read_csv(LOG_PATH)
+            st.dataframe(log_df, use_container_width=True)
+            st.download_button(
+                label="Download log CSV",
+                data=LOG_PATH.read_bytes(),
+                file_name="download_logs.csv",
+                mime="text/csv"
+            )
+            if st.button("Clear log", type="secondary"):
+                LOG_PATH.unlink(missing_ok=True)
+                st.success("Download log cleared.")
+                st.experimental_rerun()
+        else:
+            st.info("No downloads have been logged yet.")
+
+    st.stop()
+
 # Title
 st.title("Econophysics Random Walk")
 
@@ -179,27 +210,3 @@ if df is not None:
 
 else:
     st.warning("Please upload a file or generate default random walk to continue.")
-
-# Admin-only download log view (hidden unless query params include admin flag and correct token)
-params = st.experimental_get_query_params()
-is_admin = params.get("admin", ["0"])[0] == "1"
-provided_token = params.get("token", [""])[0]
-
-if is_admin:
-    st.header("Admin: Download Log")
-    if not ADMIN_TOKEN:
-        st.warning("ADMIN_TOKEN environment variable is not set; admin view is disabled.")
-    elif provided_token != ADMIN_TOKEN:
-        st.error("Unauthorized: invalid token.")
-    else:
-        if LOG_PATH.exists():
-            log_df = pd.read_csv(LOG_PATH)
-            st.dataframe(log_df, use_container_width=True)
-            st.download_button(
-                label="Download log CSV",
-                data=LOG_PATH.read_bytes(),
-                file_name="download_logs.csv",
-                mime="text/csv"
-            )
-        else:
-            st.info("No downloads have been logged yet.")
