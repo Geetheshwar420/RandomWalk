@@ -86,7 +86,7 @@ if df is not None:
                   x='Time', 
                   y='Price',
                   title='Random Walk of Stock Price',
-                  labels={'Time': 'Time', 'Price': 'Price (₹)'},
+                  labels={'Price': 'Price (₹)'},
                   markers=True)
     
     # Update layout
