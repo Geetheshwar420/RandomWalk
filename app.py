@@ -2,9 +2,31 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
+from datetime import datetime
+from pathlib import Path
+import os
+import csv
 
 # Set page configuration
 st.set_page_config(page_title="Econophysics Random Walk", page_icon="📈", layout="wide")
+
+LOG_PATH = Path("download_logs.csv")
+ADMIN_TOKEN = os.getenv("ADMIN_TOKEN")
+
+
+def log_download(name: str, title: str) -> None:
+    """Append download metadata to CSV log with a timestamp."""
+    cleaned_name = name.strip()
+    if not cleaned_name:
+        return
+
+    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    is_new_file = not LOG_PATH.exists()
+    with LOG_PATH.open("a", newline="") as f:
+        writer = csv.writer(f)
+        if is_new_file:
+            writer.writerow(["timestamp", "name", "title"])
+        writer.writerow([datetime.utcnow().isoformat(), cleaned_name, title])
 
 # Title
 st.title("Econophysics Random Walk")
@@ -80,14 +102,21 @@ if df is not None:
     
     # Plot Section
     st.header("3. Random Walk Visualization")
-    
+
+    # Allow users to set a document title that is shown on the chart and used for downloads
+    document_title = st.text_input("Documentation title", value="Random Walk Report")
+    cleaned_title = document_title.strip() or "Random Walk Report"
+    download_name = "_".join(cleaned_title.split()) or "random_walk_report"
+
     # Create plotly line chart
-    fig = px.line(edited_df, 
-                  x='Time', 
-                  y='Price',
-                  title='Random Walk of Stock Price',
-                  labels={'Price': 'Price (₹)'},
-                  markers=True)
+    fig = px.line(
+        edited_df,
+        x='Time',
+        y='Price',
+        title=cleaned_title,
+        labels={'Price': 'Price (₹)'},
+        markers=True
+    )
     
     # Update layout
     fig.update_traces(line=dict(color='blue', width=2),
@@ -97,11 +126,27 @@ if df is not None:
         xaxis_title='Time',
         yaxis_title='Price (₹)',
         hovermode='x unified',
-        showlegend=False
+        showlegend=False,
+        title=dict(font=dict(size=22), x=0.02)
     )
     
     # Display the plot
     st.plotly_chart(fig, use_container_width=True)
+
+    # Require a name for logging before allowing download
+    downloader_name = st.text_input("Your name (stored privately with download)", value="")
+
+    # Download chart as PNG with the chosen title on top
+    image_bytes = fig.to_image(format="png", width=1200, height=800, scale=2, engine="kaleido")
+    st.download_button(
+        label="Download visualization (PNG)",
+        data=image_bytes,
+        file_name=f"{download_name}.png",
+        mime="image/png",
+        disabled=not downloader_name.strip(),
+        on_click=log_download,
+        args=(downloader_name, cleaned_title)
+    )
     
     # Information Section
     st.header("4. Observation")
@@ -121,3 +166,27 @@ if df is not None:
 
 else:
     st.warning("Please upload a file or generate default random walk to continue.")
+
+# Admin-only download log view (hidden unless query params include admin flag and correct token)
+params = st.experimental_get_query_params()
+is_admin = params.get("admin", ["0"])[0] == "1"
+provided_token = params.get("token", [""])[0]
+
+if is_admin:
+    st.header("Admin: Download Log")
+    if not ADMIN_TOKEN:
+        st.warning("ADMIN_TOKEN environment variable is not set; admin view is disabled.")
+    elif provided_token != ADMIN_TOKEN:
+        st.error("Unauthorized: invalid token.")
+    else:
+        if LOG_PATH.exists():
+            log_df = pd.read_csv(LOG_PATH)
+            st.dataframe(log_df, use_container_width=True)
+            st.download_button(
+                label="Download log CSV",
+                data=LOG_PATH.read_bytes(),
+                file_name="download_logs.csv",
+                mime="text/csv"
+            )
+        else:
+            st.info("No downloads have been logged yet.")
