@@ -129,23 +129,36 @@ if df is not None:
         showlegend=False,
         title=dict(font=dict(size=22), x=0.02)
     )
+
+    # Require a name before showing/download; also stamp it on the image
+    downloader_name = st.text_input("Your name (shown on the image and stored privately with download)", value="")
+    cleaned_name = downloader_name.strip()
+
+    if cleaned_name:
+        fig.add_annotation(
+            x=0.99,
+            y=1.12,
+            xref="paper",
+            yref="paper",
+            text=f"Downloaded by: {cleaned_name}",
+            showarrow=False,
+            font=dict(size=12, color="gray"),
+            align="right"
+        )
     
-    # Display the plot
+    # Display the plot (with name annotation when provided)
     st.plotly_chart(fig, use_container_width=True)
 
-    # Require a name for logging before allowing download
-    downloader_name = st.text_input("Your name (stored privately with download)", value="")
-
-    # Download chart as PNG with the chosen title on top
+    # Download chart as PNG with the chosen title and name stamp
     image_bytes = fig.to_image(format="png", width=1200, height=800, scale=2, engine="kaleido")
     st.download_button(
         label="Download visualization (PNG)",
         data=image_bytes,
         file_name=f"{download_name}.png",
         mime="image/png",
-        disabled=not downloader_name.strip(),
+        disabled=not cleaned_name,
         on_click=log_download,
-        args=(downloader_name, cleaned_title)
+        args=(cleaned_name, cleaned_title)
     )
     
     # Information Section
